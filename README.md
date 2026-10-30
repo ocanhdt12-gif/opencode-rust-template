@@ -1,69 +1,319 @@
 # opencode-rust-template
 
-A Rust edition of the opencode project template. It keeps the **entire AI
-orchestration flow** of `opencode-project-template` unchanged and swaps the
-machine tooling + default project stack from Node/React to **Rust**.
+Phiên bản **Rust** của template dự án opencode. Nó giữ **nguyên vẹn toàn bộ luồng điều phối AI**
+của `opencode-project-template` và chỉ đổi phần **machine tooling** + **stack mặc định của project con**
+từ Node/React sang **Rust**.
 
-> Status: **Pha 1 (scaffold) complete.** Pha 2–4 pending — see [Roadmap](#roadmap).
+> Trạng thái: **hoàn tất Pha 1–4.** Pha 5 (tùy chọn) còn để ngỏ — xem [Roadmap](#roadmap).
 
-## Two layers (important)
+---
 
-The template is made of two separate layers. "Switching to Rust" only touches the
-second one.
+## Mục lục
 
-| Layer | What it is | Rust change? |
-|-------|-----------|--------------|
-| **A — AI orchestration** | `AGENTS.md`, `.opencode/agent/*.md`, `.opencode/command/*.md`, `.agent/*.md`, `skills/`, `spec/`, `opencode.jsonc`. Pure Markdown/config that routes intents and drives agents. | **No.** Copied verbatim in Pha 4. The flow `/start → brainstorm → design → graph → loop`, human checkpoints and worktree-per-task are unchanged. |
-| **B — Machine tooling** | The scripts that actually run on the machine. Previously Node `.mjs`. | **Yes.** Ported to a single Rust binary `opencode-tools`. |
+- [Ý tưởng: hai tầng](#ý-tưởng-hai-tầng)
+- [Cài đặt & build](#cài-đặt--build)
+- [`opencode-tools` — 6 lệnh con](#opencode-tools--6-lệnh-con)
+- [Luồng điều phối AI (`/start`)](#luồng-điều-phối-ai-start)
+- [Dùng làm template cho dự án mới](#dùng-làm-template-cho-dự-án-mới)
+- [Stack mặc định của project con](#stack-mặc-định-của-project-con)
+- [Phát triển & kiểm thử](#phát-triển--kiểm-thử)
+- [Cấu trúc thư mục](#cấu-trúc-thư-mục)
+- [Quyết định thiết kế](#quyết-định-thiết-kế)
+- [Roadmap](#roadmap)
 
-## The `opencode-tools` binary
+---
 
-One multi-command binary replaces the legacy scripts. Each subcommand keeps the
-**same CLI contract** (flags, stdout, generated files) as the script it replaces,
-so Layer A can call it without noticing the change.
+## Ý tưởng: hai tầng
 
-| `opencode-tools <cmd>` | Legacy script | Role |
-|------------------------|---------------|------|
-| `dispatch` | `scripts/parallel-dispatch.mjs` | Parallel layer tasks via git worktree-per-task + auto-merge (`plan`/`setup`/`merge`/`cleanup`) |
-| `sync` | `scripts/template-sync.mjs` | Pull managed paths from the canonical template (`--project`, `--dry-run`, `--prune`, `--template`, `--no-config`) |
-| `detect` | `scripts/detect-profile.mjs` | Detect project stack/profile → JSON (or `--md`) for `/brainstorm` |
-| `inventory` | `scripts/generate-inventory.mjs` | Write `docs/generated/inventory.md` |
-| `perms` | `scripts/apply-verify-permissions.mjs` | Sync reviewer allow-rules with verify commands (dry-run by default; `--write`) |
-| `live` | `.claude/hooks/live-studio.mjs` | vibe-studio enter/leave hook |
+Template gồm hai tầng tách biệt. "Chuyển sang Rust" chỉ đụng tầng thứ hai.
 
-## Build
+| Tầng | Là gì | Đổi sang Rust? |
+|------|-------|----------------|
+| **A — Điều phối AI** | `AGENTS.md`, `.opencode/agent/*.md`, `.opencode/command/*.md`, `.agent/*.md`, `skills/`, `spec/`, `opencode.jsonc`. Toàn Markdown/config, định tuyến ý định và dẫn dắt agent. | **Không.** Copy nguyên. Luồng `/start → brainstorm → design → graph → loop`, các human checkpoint và mô hình worktree-per-task giữ y hệt. |
+| **B — Machine tooling** | Các script thực thi trên máy. Trước là Node `.mjs`. | **Có.** Port thành một binary Rust duy nhất `opencode-tools`. |
+
+Tầng A gọi tầng B qua **CLI + file I/O**. Port B sang Rust mà giữ nguyên hợp đồng đó → cả luồng vẫn chạy.
+
+---
+
+## Cài đặt & build
+
+Cần [Rust](https://rustup.rs) (toolchain `stable`, kèm `clippy` + `rustfmt` — đã khai trong `rust-toolchain.toml`).
 
 ```sh
-# install Rust if needed: https://rustup.rs
+# clone
+git clone git@github.com:ocanhdt12-gif/opencode-rust-template.git
+cd opencode-rust-template
+
+# build binary tooling
 cargo build --release
+
+# binary nằm ở target/release/opencode-tools
 ./target/release/opencode-tools --help
 ```
 
-## Key decisions
+Cho tiện gọi từ bất kỳ đâu, thêm binary vào PATH:
 
-1. **vibe-studio stays TypeScript** (browser UI; not worth forcing to Rust in Pha 1).
-2. **Default web stack for generated projects = full-stack Rust**: **Axum** (backend) + **Leptos** (WASM frontend).
-3. **Tooling packaging = one multi-command binary** `opencode-tools <subcommand>`.
-4. **Git = shell-out** to the `git` binary (no libgit2), matching legacy behaviour.
-5. Template name: **opencode-rust-template**. Git repo to be created later.
+```sh
+# cách 1: cài vào ~/.cargo/bin
+cargo install --path crates/tools
 
-## Roadmap
+# cách 2: symlink
+ln -s "$PWD/target/release/opencode-tools" ~/.local/bin/opencode-tools
+```
 
-- [x] **Pha 1** — Cargo workspace, `core` lib skeleton, `opencode-tools` with 6 subcommands (CLI contract only), CI, docs.
-- [ ] **Pha 2** — Port the 6 tools for real, each with golden tests comparing output against the legacy `.mjs`.
-- [x] **Pha 3** — Rust-ify the generated-project stack: `detect` recognises `Cargo.toml`; default verify = `cargo build/test/clippy/fmt`; `skills/rust-guidelines/`; `.context/project-config.rust.md` Rust group.
-- [ ] **Pha 4** — Copy Layer A (AGENTS/agents/commands/skills/spec), rewire tool invocations to the Rust binary, smoke-test `/start` end-to-end.
-- [ ] **Pha 5 (optional)** — Port vibe-studio sprite scripts to Rust (`image` crate).
+---
 
-## Layout
+## `opencode-tools` — 6 lệnh con
+
+Một binary đa lệnh thay cho các script `.mjs` cũ. Mỗi lệnh giữ **đúng CLI contract** (flag, stdout, file sinh ra)
+của script nó thay thế, nên tầng A gọi như cũ mà không cần biết đã đổi ngôn ngữ.
+
+```
+opencode-tools <command> [options]
+```
+
+| Lệnh | Thay cho | Vai trò |
+|------|----------|---------|
+| `detect` | `detect-profile.mjs` | Dò stack/profile dự án → JSON cho `/brainstorm` |
+| `inventory` | `generate-inventory.mjs` | Sinh `docs/generated/inventory.md` |
+| `perms` | `apply-verify-permissions.mjs` | Đồng bộ allow-rule của reviewer với verify command |
+| `sync` | `template-sync.mjs` | Kéo managed paths mới từ template canonical |
+| `dispatch` | `parallel-dispatch.mjs` | Chạy task song song qua git worktree-per-task |
+| `live` | `live-studio.mjs` | Hook vibe-studio: event enter/leave nhân vật |
+
+### `detect` — dò profile dự án
+
+Chỉ đọc cây repo (không ghi gì), in gợi ý cho `.context/project-config.md`. Nhận cả Node (npm/pnpm/yarn/bun,
+prisma/drizzle) **và** Rust (Cargo.toml → `package_manager: cargo`, verify = cargo).
+
+```sh
+opencode-tools detect          # JSON (mặc định)
+opencode-tools detect --md     # Markdown dễ đọc
+```
+
+### `inventory` — kiểm kê file
+
+Đọc `source_roots` từ `.context/project-config.md`, sinh `docs/generated/inventory.md` (bảng theo đuôi file +
+danh sách theo thư mục + git HEAD). Bỏ qua `node_modules`, `target`, `dist`, … Chạy lại bao nhiêu lần cũng ra kết quả nhất quán.
+
+```sh
+opencode-tools inventory
+```
+
+### `perms` — đồng bộ allow-rule verify
+
+Chỉ sửa block giữa marker `# verify-commands:start` / `# verify-commands:end` trong
+`.opencode/agent/reviewer.md` và `spec-validator.md`. **Mặc định dry-run**; thêm `--write` để ghi thật.
+Chỉ auto-allow lệnh an toàn (không shell-meta, không git/db phá hoại, không `rm`/`--force`); pattern là **exact**.
+
+```sh
+opencode-tools perms            # dry-run (xem trước)
+opencode-tools perms --write    # ghi thật
+```
+
+### `sync` — đồng bộ với template canonical
+
+Chỉ ghi đè **managed paths** (`AGENTS.md`, `.agent/`, `.opencode/`, `scripts/`, `skills/`). Không đụng code,
+spec, docs, `.env`, `package.json`… Nếu managed paths đang có thay đổi **chưa commit** → dừng, không ghi đè.
+
+```sh
+opencode-tools sync                       # đồng bộ dự án hiện tại
+opencode-tools sync --project /path/proj  # chỉ định dự án đích
+opencode-tools sync --dry-run             # chỉ xem, không ghi
+opencode-tools sync --prune               # xoá file template đã bỏ (trong managed paths)
+opencode-tools sync --template <git-url>  # đổi nguồn template
+opencode-tools sync --no-config           # bỏ qua .template-sync.json
+```
+
+### `dispatch` — chạy task song song (worktree-per-task)
+
+Lo phần git/worktree + kiểm tra độc lập + merge an toàn cho loop song song. **Không tự spawn agent**
+(việc đó do `.agent/loop.md` điều phối).
+
+```sh
+opencode-tools dispatch plan --layer 1                 # chia wave (task trùng file → khác wave)
+opencode-tools dispatch setup --task layer-1/task-03   # tạo worktree + branch cho 1 task
+opencode-tools dispatch merge --layer 1                # gom branch task về integration branch
+opencode-tools dispatch merge --layer 1 --no-verify    # bỏ gợi ý verify
+opencode-tools dispatch cleanup --layer 1              # xoá worktree + branch tạm
+opencode-tools dispatch status                         # liệt kê worktree + branch wt/*
+```
+
+Chế độ **change** (feature/bug) thay `--layer N` bằng `--scope <feature|bug>-<slug> --phase N`.
+
+### `live` — hook vibe-studio
+
+Map event vòng đời opencode → action enter/leave nhân vật, in ra `<action> role-<agentId>`.
+
+```sh
+opencode-tools live UserPromptSubmit --agent builder    # → chat-enter role-builder
+opencode-tools live PreToolUse --tool Agent --agent reviewer  # → agent-enter role-reviewer
+opencode-tools live Stop                                # → chat-leave role-default
+```
+
+Mapping: `UserPromptSubmit→chat-enter` · `Stop→chat-leave` · `PreToolUse(Agent|SendMessage)→agent-enter` ·
+`PostToolUse(Agent)→agent-leave` · `SubagentStop→agent-leave`. Event không khớp → no-op.
+
+---
+
+## Luồng điều phối AI (`/start`)
+
+`/start` là **một** cửa vào để dựng dự án lần đầu. Cả chuỗi tự chạy, chỉ **dừng ở human checkpoint**;
+user không phải gõ lại từng lệnh — reply `ok` là chạy tiếp.
+
+```
+1. ĐỌC SPEC
+   ├─ có SPECIFICATIONS.md → dùng luôn
+   └─ chưa có              → /spec-init (reverse-engineer từ code)
+   → subagent spec-validator cross-check spec vs code/docs (max 2 vòng)
+
+2. BRAINSTORM            (.agent/brainstorm.md)
+   → làm rõ yêu cầu → design doc + chốt .context/project-config.md
+     (dùng `opencode-tools detect` để gợi ý profile)
+   ⏸ CHECKPOINT: user approve design
+
+3. DESIGN  (nếu có UI)   (.agent/design.md)
+   → design tokens + screen specs + diagram
+   ⏸ CHECKPOINT: confirm design tokens
+
+4. GRAPH                 (.agent/graph.md)
+   → chia layer + task → tasks/<slug>/layer-{N}-task-{NN}.md + layer-plan diagram
+   ⏸ CHECKPOINT: duyệt layer plan
+
+5. LOOP                  (.agent/loop.md)
+   → `opencode-tools dispatch plan --layer N` chia wave
+   → mỗi task 1 git worktree → spawn builder song song (full loop)
+       PASS → reviewer review độc lập → commit trong worktree
+       FAIL → error-analyzer → fix → retry (max 3)
+   → cả layer xong → dispatcher merge → verify tổng thể → cleanup
+   → DevOps lo git/CI-CD/deploy; layer cuối → spec-publisher cập nhật spec/CHANGELOG
+   ⏸ checkpoint sau mỗi layer (layer N+1 chỉ mở khi layer N PASS + user approve)
+```
+
+**HARD-GATE:** không code trước khi design approve; không chạy layer N+1 trước khi layer N PASS + approve.
+
+Sau khi dự án build xong, mọi thay đổi đi qua `/change` (agent `change-request`) — **không** chạy lại `/start`.
+
+### Lệnh slash có sẵn (`.opencode/command/`)
+
+| Lệnh | Dùng khi |
+|------|----------|
+| `/start` | Dựng dự án lần đầu (chạy cả chuỗi) |
+| `/spec-init` · `/spec-publish` | Khởi tạo / xuất bản spec |
+| `/brainstorm` · `/design` · `/graph` | Chạy tay từng bước (manual override) |
+| `/feature` · `/change` | Thêm/sửa/bỏ tính năng qua Change Request |
+| `/bug` · `/bug-check` | Điều tra & sửa bug / soi read-only |
+| `/resume` | Tiếp tục việc dở từ Run Journal |
+| `/dashboard` | Mở Vibe Code Studio (dashboard trực quan) |
+
+---
+
+## Dùng làm template cho dự án mới
+
+```sh
+# 1. tạo dự án mới từ template (copy, bỏ .git để init repo riêng)
+cp -r opencode-rust-template my-app && cd my-app
+rm -rf .git target && git init
+
+# 2. build tooling
+cargo build --release && cargo install --path crates/tools   # hoặc thêm vào PATH
+
+# 3. mở trong opencode và chạy
+/start
+```
+
+Khi template canonical cập nhật, kéo phần managed paths về bằng:
+
+```sh
+opencode-tools sync --dry-run    # xem trước
+opencode-tools sync              # áp dụng (chỉ đụng AGENTS.md/.agent//.opencode//scripts//skills/)
+```
+
+---
+
+## Stack mặc định của project con
+
+Project sinh từ template này mặc định dùng Rust:
+
+- **Web full-stack:** [Axum](https://github.com/tokio-rs/axum) (backend) + [Leptos](https://leptos.dev) (frontend WASM, SSR + hydrate).
+- **Async:** tokio. **Error:** `thiserror` (library) + `anyhow` (binary).
+- **Verify mặc định:** `cargo fmt --all --check` → `cargo clippy --workspace --all-targets -- -D warnings`
+  → `cargo build --workspace --release` → `cargo test --workspace`.
+- Convention đầy đủ: [`skills/rust-guidelines/SKILL.md`](skills/rust-guidelines/SKILL.md).
+- Mẫu cấu hình: [`.context/project-config.rust.md`](.context/project-config.rust.md).
+
+---
+
+## Phát triển & kiểm thử
+
+```sh
+cargo fmt --all --check                                   # format
+cargo clippy --workspace --all-targets -- -D warnings     # lint (deny warnings)
+cargo build --workspace --release                         # build
+cargo test --workspace                                    # test (34 golden test)
+```
+
+**Golden test** so output của mỗi tool với kỳ vọng từ bản `.mjs` cũ:
+
+| Suite | Số test |
+|-------|---------|
+| `detect_golden` | 6 |
+| `inventory_golden` | 5 |
+| `perms_golden` | 8 |
+| `sync_golden` | 5 |
+| `dispatch_golden` | 6 |
+| `live_golden` | 4 |
+
+CI (`.github/workflows/ci.yml`) chạy cả 4 bước trên mỗi push/PR.
+
+Logic thuần (parse, phân loại, chia wave) tách khỏi I/O nên test không cần mạng/git; phần git/rsync là shell-out.
+
+---
+
+## Cấu trúc thư mục
 
 ```
 opencode-rust-template/
-├── Cargo.toml                 # workspace
+├── Cargo.toml                     # workspace
+├── rust-toolchain.toml            # stable + clippy + rustfmt
 ├── crates/
-│   ├── core/                  # shared lib: config, git (shell-out), fsx, log
-│   └── tools/                 # bin: opencode-tools (6 subcommands)
-├── .github/workflows/ci.yml   # fmt + clippy -D warnings + build + test
-├── docs/ARCHITECTURE.md
-└── (Pha 4) AGENTS.md, .opencode/, .agent/, skills/, spec/, tools/vibe-studio/
+│   ├── core/                      # lib: config · detect · inventory · perms · sync · dispatch · live · git · fsx · log
+│   │   └── tests/                 # golden test (34)
+│   └── tools/                     # bin opencode-tools (6 subcommand)
+├── .github/workflows/ci.yml       # fmt + clippy -D warnings + build + test
+├── docs/ARCHITECTURE.md           # kiến trúc chi tiết
+│
+│   # ── Tầng A (điều phối AI, copy nguyên từ template gốc) ──
+├── AGENTS.md                      # router
+├── opencode.jsonc
+├── .opencode/{agent,command}/     # 9 agent + 12 command
+├── .agent/                        # workflow prompt-level (loop, brainstorm, graph, devops…)
+├── skills/                        # skill (gồm rust-guidelines)
+├── spec/  ·  tasks/  ·  .devops/  ·  .claude/
+└── .context/
+    ├── project-config.rust.md     # mẫu cấu hình Rust stack
+    └── …
+```
+
+---
+
+## Quyết định thiết kế
+
+1. **vibe-studio giữ TypeScript** — UI trình duyệt, không ép sang Rust ở Pha 1. Chỉ port hook `live`.
+2. **Web stack mặc định = full-stack Rust** — Axum + Leptos.
+3. **Tooling = một binary đa lệnh** `opencode-tools <subcommand>`.
+4. **Git = shell-out** tới binary `git` (không libgit2), khớp hành vi bản cũ.
+5. **Tên template:** `opencode-rust-template`.
+
+---
+
+## Roadmap
+
+- [x] **Pha 1** — Cargo workspace, `core` lib, `opencode-tools` (6 subcommand), CI, docs.
+- [x] **Pha 2** — Port thật 6 tool, mỗi tool có golden test (34 test pass).
+- [x] **Pha 3** — Rust-hóa stack project con: `detect` nhận `Cargo.toml`; verify mặc định `cargo …`;
+  `skills/rust-guidelines/`; `.context/project-config.rust.md`.
+- [x] **Pha 4** — Copy tầng A, rewire 9 file gọi tooling (`node scripts/*.mjs` → `opencode-tools`), smoke test.
+- [ ] **Pha 5 (tùy chọn)** — Port script sprite của vibe-studio sang Rust (`image` crate).
 ```
