@@ -16,6 +16,7 @@ từ Node/React sang **Rust**.
 - [Luồng điều phối AI (`/start`)](#luồng-điều-phối-ai-start)
 - [Dùng làm template cho dự án mới](#dùng-làm-template-cho-dự-án-mới)
 - [Stack mặc định của project con](#stack-mặc-định-của-project-con)
+- [CI/CD · Security · Monitoring](#cicd--security--monitoring)
 - [Phát triển & kiểm thử](#phát-triển--kiểm-thử)
 - [Cấu trúc thư mục](#cấu-trúc-thư-mục)
 - [Quyết định thiết kế](#quyết-định-thiết-kế)
@@ -242,6 +243,43 @@ Project sinh từ template này mặc định dùng Rust:
   → `cargo build --workspace --release` → `cargo test --workspace`.
 - Convention đầy đủ: [`skills/rust-guidelines/SKILL.md`](skills/rust-guidelines/SKILL.md).
 - Mẫu cấu hình: [`.context/project-config.rust.md`](.context/project-config.rust.md).
+
+---
+
+## CI/CD · Security · Monitoring
+
+### CI (repo này)
+
+`.github/workflows/ci.yml` có **2 job**, chạy mỗi push/PR:
+
+| Job | Bước |
+|-----|------|
+| `check` | `cargo fmt --check` → `clippy -D warnings` → `build --release` → `test` → monitoring gate (tìm health endpoint) |
+| `security` | `cargo audit` (RustSec advisory) + `cargo deny check` (license/duplicate/nguồn crate) |
+
+### Security (chuẩn hệ Rust)
+
+- **`cargo audit`** — quét lỗ hổng crate theo RustSec advisory DB (tương đương `npm audit`).
+- **`cargo deny`** — gate license + duplicate version + nguồn crate; cấu hình ở [`deny.toml`](deny.toml).
+  ```sh
+  cargo install cargo-audit cargo-deny
+  cargo audit && cargo deny check
+  ```
+- Hướng dẫn đầy đủ cho project con (auth/JWT Axum, BOLA/IDOR, secrets, input hardening):
+  [`skills/security/rust-security.md`](skills/security/rust-security.md).
+
+### Monitoring (observability)
+
+- `tracing` + OpenTelemetry (OTLP export), health/readiness endpoint Axum, `TraceLayer`, error tracking.
+- Hướng dẫn: [`skills/monitoring/rust-monitoring.md`](skills/monitoring/rust-monitoring.md).
+- **Monitoring gate** trong CI: project con có web **bắt buộc** có `GET /health` (liveness) + `/ready` (readiness).
+
+### CI/CD cho project con
+
+Khi dựng dự án, DevOps agent dùng [`.agent/devops-rust.md`](.agent/devops-rust.md) để sinh:
+- workflow GitHub Actions Rust (check + security + monitoring gate),
+- Dockerfile multi-stage (distroless) hoặc binary + systemd cho VPS,
+- health check deploy + auto-rollback.
 
 ---
 

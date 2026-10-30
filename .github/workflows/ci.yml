@@ -10,6 +10,7 @@ env:
 
 jobs:
   check:
+    name: fmt + clippy + build + test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,3 +34,36 @@ jobs:
 
       - name: Test
         run: cargo test --workspace
+
+      # 📊 Monitoring gate — project con phải có health endpoint (template tooling: skip nếu không có web)
+      - name: Monitoring gate (health endpoint)
+        run: |
+          if grep -rqE '"/health"|/health' crates --include='*.rs' 2>/dev/null; then
+            echo "✓ health endpoint found"
+          else
+            echo "ℹ️  no health endpoint (OK cho CLI tooling; project con có web PHẢI thêm GET /health)"
+          fi
+
+  security:
+    name: supply-chain audit + deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      # 🔒 cargo-audit — lỗ hổng crate theo RustSec advisory DB
+      - name: cargo audit
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 🔒 cargo-deny — license + duplicate + nguồn crate (deny.toml)
+      - name: cargo deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check

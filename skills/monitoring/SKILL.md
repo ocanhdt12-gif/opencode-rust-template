@@ -14,3 +14,4 @@ Wrapper for monitoring and observability references in this folder. Read the rel
 - `otel-collector.md` — OpenTelemetry Collector setup and pipeline guidance.
 - `otel-semantic-conventions.md` — span, metric, log, and attribute naming conventions.
 - `production-monitoring.md` — production monitoring, alerting, dashboards, and incident signals.
+- `rust-monitoring.md` — observability Rust (tracing, OTel, health/ready endpoint Axum, TraceLayer).
