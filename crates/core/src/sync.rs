@@ -15,7 +15,7 @@
 use serde::Deserialize;
 use std::path::Path;
 
-pub const TEMPLATE_REPO: &str = "git@github.com:ocanhdt12-gif/opencode-project-template.git";
+pub const TEMPLATE_REPO: &str = "git@github.com:ocanhdt12-gif/opencode-rust-template.git";
 pub const BRANCH: &str = "main";
 
 /// Default managed/report-only paths (match the legacy DEFAULTS).

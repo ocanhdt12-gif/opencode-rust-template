@@ -5,8 +5,8 @@ use opencode_core::sync::{self, Change, SyncConfig};
 #[test]
 fn repo_name_strips_git_and_path() {
     assert_eq!(
-        sync::repo_name("git@github.com:org/opencode-project-template.git"),
-        "opencode-project-template"
+        sync::repo_name("git@github.com:org/opencode-rust-template.git"),
+        "opencode-rust-template"
     );
     assert_eq!(sync::repo_name("https://github.com/org/foo/"), "foo");
     assert_eq!(sync::repo_name("https://github.com/org/bar.git"), "bar");

@@ -231,6 +231,10 @@ opencode-tools sync --dry-run    # xem trước
 opencode-tools sync              # áp dụng (chỉ đụng AGENTS.md/.agent//.opencode//scripts//skills/)
 ```
 
+Nguồn sync + managed paths khai ở [`.template-sync.json`](.template-sync.json) (đã trỏ sẵn về `opencode-rust-template`).
+
+```
+
 ---
 
 ## Stack mặc định của project con
