@@ -1,13 +1,13 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = ["crates/core", "crates/tools"]
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 repository = ""
-rust-version = "1.74"
+rust-version = "1.99"
 
 [workspace.dependencies]
 anyhow = "1"
